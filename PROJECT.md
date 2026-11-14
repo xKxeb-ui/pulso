@@ -29,12 +29,12 @@ App iOS personal que programa notificaciones locales a partir de plantillas con 
 
 ## Estado y evidencia
 
-- 2026-11-13: código 1.0.0 (build 1) escrito y con commit local. Sin Mac ni Swift en Linux, todavía no se ha compilado.
-- Por indicación del usuario no se compila hasta nuevo aviso. Repo previsto: público. `gh` 2.104.0 está instalado en `~/.local/bin` pero sin vincular (`gh auth login --web --scopes workflow`).
+- 2026-11-13: 1.0.0 (build 1) compilada en GitHub Actions (run 43537394081, Xcode 26.6, SDK iOS 26.5, 1 min 8 s) con las comprobaciones del modelo en verde. IPA verificado en `outputs/Pulso.ipa` (no versionado): `com.codex.local.pulso`, mínimo iOS 26.0.
+- Repositorio público `xKxeb-ui/pulso`; `gh` 2.104.0 en `~/.local/bin` vinculado a esa cuenta. Un push a `main` que toque código compila solo; si no arranca, `gh workflow run build-ipa.yml`.
+- Decisión 2026-11-13: la app conserva identidad propia (nombre e icono). No se replica la marca de Yape ni de otros medios de pago.
 - Icono generado con `work/scripts/icon.py` (Pillow), fuera de Git.
 
 ## Próximos pasos
 
-1. Crear el repositorio privado en GitHub, hacer push y corregir lo que falle en el primer run.
-2. Instalar el IPA y comprobar notificaciones, cola y Liquid Glass en un iPhone real.
-3. Añadir plantillas nuevas cuando el usuario las pase.
+1. Instalar el IPA y comprobar notificaciones, cola y Liquid Glass en un iPhone real.
+2. Añadir plantillas nuevas cuando el usuario las pase.
