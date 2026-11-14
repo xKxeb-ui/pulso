@@ -30,7 +30,8 @@ App iOS personal que programa notificaciones locales a partir de plantillas con 
 ## Estado y evidencia
 
 - 2026-11-13: código 1.0.0 (build 1) escrito y con commit local. Sin Mac ni Swift en Linux, todavía no se ha compilado.
-- Pendiente: el repositorio de GitHub y el primer run de Actions.
+- Por indicación del usuario no se compila hasta nuevo aviso. Repo previsto: público. `gh` 2.104.0 está instalado en `~/.local/bin` pero sin vincular (`gh auth login --web --scopes workflow`).
+- Icono generado con `work/scripts/icon.py` (Pillow), fuera de Git.
 
 ## Próximos pasos
 
