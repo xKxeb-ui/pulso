@@ -1,0 +1,57 @@
+name: Compilar IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", "docs/**"]
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Herramientas
+        run: xcodebuild -version
+
+      - name: Probar modelo (plantillas, montos, intervalos)
+        run: |
+          mkdir -p build
+          xcrun swiftc Pulso/Model.swift Tests/main.swift -o build/model-check
+          build/model-check
+
+      - name: Generar proyecto Xcode
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Compilar sin firma
+        run: |
+          xcodebuild -quiet \
+            -project Pulso.xcodeproj \
+            -scheme Pulso \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build/dd \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
+
+      - name: Empaquetar IPA
+        run: |
+          APP=build/dd/Build/Products/Release-iphoneos/Pulso.app
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = com.codex.local.pulso
+          mkdir Payload
+          cp -R "$APP" Payload/
+          ditto -c -k --sequesterRsrc --keepParent Payload Pulso.ipa
+          unzip -l Pulso.ipa | grep -q 'Payload/Pulso.app/Pulso$'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Pulso-ipa
+          path: Pulso.ipa
+          if-no-files-found: error
+          retention-days: 14
