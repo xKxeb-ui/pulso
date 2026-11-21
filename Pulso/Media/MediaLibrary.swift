@@ -5,6 +5,11 @@ import UniformTypeIdentifiers
 
 enum MediaLibrary {
     @MainActor
+    static func hiddenCount() -> Int {
+        fetchHidden()?.count ?? 0
+    }
+
+    @MainActor
     static func fetch() -> AssetFetchResult {
         AssetFetchResult(
             visible: PHAsset.fetchAssets(with: mediaOptions(includeHidden: false)),
@@ -91,8 +96,9 @@ enum MediaLibrary {
         var count: Int { visible.count + (hidden?.count ?? 0) }
 
         func object(at index: Int) -> PHAsset {
-            if let hidden, index >= visible.count {
-                return hidden.object(at: index - visible.count)
+            if let hidden {
+                if index < hidden.count { return hidden.object(at: index) }
+                return visible.object(at: index - hidden.count)
             }
             return visible.object(at: index)
         }

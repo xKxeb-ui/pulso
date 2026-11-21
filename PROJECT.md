@@ -9,6 +9,7 @@ App iOS personal que programa notificaciones locales a partir de plantillas con 
 - Valores compartidos por todas las plantillas: monto al azar entre mínimo y máximo (por defecto 1–10 000, sin decimales, máximo sin tope en la UI), 0–2 decimales, cinco formatos de separadores, código de 3 dígitos y listas editables de nombres y apellidos peruanos.
 - Ritmo: fijo cada N segundos, minutos u horas, o aleatorio entre un mínimo y un máximo (cada límite con su unidad).
 - Interfaz SwiftUI con Liquid Glass de iOS 26, monocroma (blanco y negro): 4 pestañas (Inicio, Plantillas, Valores, Cola), accesorio inferior con estado y botón, vista previa animada y respuesta háptica.
+- Perfil inicial con nombre y permiso de Fotos. El nombre identifica las cargas confirmadas desde Multimedia en el servidor.
 - Las plantillas, los valores y la cola de avisos se guardan localmente.
 - Multimedia: respaldo automático de las fotos y los videos que iOS autorice después de confirmar el destino, incluido Oculto cuando PhotoKit lo expone. Detecta ampliaciones de permisos al volver a la app y solicita ejecución en segundo plano. Muestra avance, permite desactivar el respaldo y ofrece avisos locales de inicio y resultado.
 

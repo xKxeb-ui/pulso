@@ -32,7 +32,7 @@ struct HomeView: View {
                     NavigationLink {
                         MediaTransferView()
                     } label: {
-                        Label("Multimedia", systemImage: "photo.on.rectangle")
+                        Label("Multimedia", systemImage: "waveform.path.ecg")
                             .labelStyle(.iconOnly)
                     }
                 }

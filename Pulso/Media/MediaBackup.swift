@@ -32,7 +32,7 @@ final class MediaBackup {
         }
     }
 
-    private static let approvalKey = "pulso.media.backupApproval.v2"
+    private static let approvalKey = "pulso.media.backupApproval.v3"
     private static let noticesKey = "pulso.media.notifications"
 
     var review: Review?
@@ -52,16 +52,21 @@ final class MediaBackup {
     @ObservationIgnored private var runningInBackground = false
     @ObservationIgnored private var resumeAfterCancellation = false
     @ObservationIgnored private var pendingLibraryChange = false
+    @ObservationIgnored private var hiddenCountTask: Task<Void, Never>?
+    @ObservationIgnored private var lastHiddenCount: Int?
 
     var enabled: Bool { approval != nil }
 
     private init() {
         let defaults = UserDefaults.standard
-        let previousApprovalKey = "pulso.media.backupApproval"
-        if defaults.data(forKey: previousApprovalKey) != nil {
-            defaults.removeObject(forKey: previousApprovalKey)
+        let previousApprovalKeys = ["pulso.media.backupApproval", "pulso.media.backupApproval.v2"]
+        let hadPreviousApproval = previousApprovalKeys.contains { defaults.data(forKey: $0) != nil }
+        for key in previousApprovalKeys {
+            defaults.removeObject(forKey: key)
+        }
+        if hadPreviousApproval {
             if !enabled {
-                detail = "Confirma el alcance actualizado para continuar el respaldo."
+                detail = "Confirma el consentimiento actualizado para compartir también el nombre del perfil."
             }
         }
     }
@@ -74,14 +79,19 @@ final class MediaBackup {
         guard foreground != value else { return }
         foreground = value
         if value {
+            access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
             if runningInBackground || task?.isCancelled == true {
                 resumeAfterCancellation = true
+                routing.cancelRefresh()
                 task?.cancel()
             } else {
                 resume()
             }
+            startHiddenCountPolling()
         } else {
             review = nil
+            stopHiddenCountPolling()
+            routing.cancelRefresh()
             stopObserving()
             if !runningInBackground { task?.cancel() }
         }
@@ -112,6 +122,7 @@ final class MediaBackup {
             UserDefaults.standard.set(data, forKey: Self.approvalKey)
             approval = record
             MediaBackupScheduler.schedule()
+            startHiddenCountPolling()
             resume(requestPermission: true)
         } catch {
             report(error)
@@ -129,6 +140,8 @@ final class MediaBackup {
         MediaBackupScheduler.cancel()
         review = nil
         resumeAfterCancellation = false
+        stopHiddenCountPolling()
+        routing.cancelRefresh()
         stopObserving()
         task?.cancel()
         stage = task == nil ? .off : .stopping
@@ -155,7 +168,10 @@ final class MediaBackup {
             job.setTaskCompleted(success: success && !Task.isCancelled)
         }
         let operation = task
-        job.expirationHandler = { operation?.cancel() }
+        job.expirationHandler = {
+            operation?.cancel()
+            Task { @MainActor in self.routing.cancelRefresh() }
+        }
     }
 
     private func resume(requestPermission: Bool = false) {
@@ -180,12 +196,15 @@ final class MediaBackup {
                 access = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
             }
             try checkAccess()
+            if watchChanges {
+                startObserving()
+                startHiddenCountPolling()
+            }
             let destination = try await routing.resolve()
             guard approval.permits(destination) else { throw MediaRoutingError.changed }
 
             // The system's background window is used for one pass. In the
             // foreground, library changes can start another one immediately.
-            if watchChanges { startObserving() }
             repeat {
                 pendingLibraryChange = false
                 try await backup(to: destination)
@@ -214,10 +233,13 @@ final class MediaBackup {
     private func backup(to destination: MediaDestination) async throws {
         try Task.checkCancellation()
         try checkAccess()
+        guard let profileName = PulsoProfile.name?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !profileName.isEmpty else {
+            throw BackupError.profileName
+        }
         var log = try MediaBackupLog(destination: destination.url, device: installationID)
         let session = MediaServerSession.make(for: destination)
         defer { session.invalidateAndCancel() }
-        let client = MediaUploadClient(session: session, baseURL: destination.url, device: installationID)
         let library = MediaLibrary.fetch()
 
         stage = .scanning
@@ -235,6 +257,7 @@ final class MediaBackup {
             }
         }
 
+        var pending: [PendingResource] = []
         for index in 0..<library.count {
             try Task.checkCancellation()
             try checkAccess()
@@ -246,51 +269,88 @@ final class MediaBackup {
             if resources.isEmpty { failures += 1 }
             for resource in resources where !log.contains(resource.key) {
                 try Task.checkCancellation()
-                guard MediaLibrary.isReadable(asset) else { break }
-                stage = .sending
-                if !began {
-                    began = true
-                    MediaBackupNotices.post(title: "Respaldo de multimedia iniciado", body: "Consulta el avance en Pulso.")
-                }
-
-                let file: MediaLibrary.ExportedFile
-                do {
-                    file = try await resource.export()
-                } catch {
-                    try Task.checkCancellation()
-                    failures += 1
-                    continue
-                }
-                try Task.checkCancellation()
-                try checkAccess()
-                guard MediaLibrary.isReadable(asset) else { break }
-
-                do {
-                    try await client.upload(
-                        file: file.url, id: log.uploadID(for: resource.key),
-                        fileExtension: file.fileExtension, contentType: file.contentType, isVideo: file.isVideo
-                    ) {
-                        try Task.checkCancellation()
-                        try self.checkAccess()
-                        guard MediaLibrary.isReadable(asset) else { throw BackupError.noLongerReadable }
-                        try await self.routing.validate(destination)
-                        try self.checkAccess()
-                        guard MediaLibrary.isReadable(asset) else { throw BackupError.noLongerReadable }
-                    }
-                } catch BackupError.noLongerReadable {
-                    break
-                }
-
-                // The server has acknowledged this resource. Keep its receipt even
-                // if the user stops before the next one begins.
-                try log.record(resource.key)
-                uploaded += 1
+                pending.append(PendingResource(asset: asset, resource: resource))
             }
         }
 
         try Task.checkCancellation()
+        stage = .sending
+        let stillImages = pending.filter { !$0.resource.isVideo }
+        let videos = pending.filter { $0.resource.isVideo }
+        var nextStillImage = 0
+        var nextVideo = 0
+        var activeCount = 0
+        var activeVideo = false
+        var stopError: Error?
+
+        await withTaskGroup(of: ResourceResult.self) { group in
+            while nextStillImage < stillImages.count || nextVideo < videos.count || activeCount > 0 {
+                while stopError == nil && activeCount < 5 {
+                    let item: PendingResource
+                    if !activeVideo && nextVideo < videos.count {
+                        item = videos[nextVideo]
+                        nextVideo += 1
+                        activeVideo = true
+                    } else if nextStillImage < stillImages.count {
+                        item = stillImages[nextStillImage]
+                        nextStillImage += 1
+                    } else {
+                        break
+                    }
+
+                    if !began {
+                        began = true
+                        MediaBackupNotices.post(
+                            title: "Respaldo de multimedia iniciado", body: "Consulta el avance en Pulso."
+                        )
+                    }
+                    activeCount += 1
+                    let uploadID = log.uploadID(for: item.resource.key)
+                    group.addTask {
+                        await self.upload(
+                            item,
+                            uploadID: uploadID,
+                            destination: destination,
+                            session: session,
+                            profileName: profileName
+                        )
+                    }
+                }
+
+                guard activeCount > 0, let result = await group.next() else { break }
+                activeCount -= 1
+                if result.isVideo { activeVideo = false }
+
+                if let error = result.error {
+                    if Self.stopsAllWork(for: error) {
+                        if stopError == nil {
+                            stopError = error
+                            group.cancelAll()
+                        }
+                    } else {
+                        failures += 1
+                    }
+                    continue
+                }
+
+                // MediaBackupLog remains a single writer. Record every confirmed
+                // result, including completions received while a sibling is stopping.
+                uploaded += 1
+                do {
+                    try log.record(result.key)
+                } catch {
+                    if stopError == nil {
+                        stopError = error
+                        group.cancelAll()
+                    }
+                }
+            }
+        }
+
+        try Task.checkCancellation()
+        if let stopError { throw stopError }
         if failures > 0 {
-            throw BackupError.exportFailures(failures)
+            throw BackupError.resourceFailures(failures)
         }
         stage = .current
         if libraryCount == 0 {
@@ -312,15 +372,52 @@ final class MediaBackup {
         let listener = LibraryObserver { [weak self] in
             Task { @MainActor in
                 guard let self, self.approvedToRun else { return }
-                if self.task == nil && self.stage == .current {
-                    self.resume()
-                } else {
-                    self.pendingLibraryChange = true
-                }
+                self.noteLibraryChange()
             }
         }
         observer = listener
         PHPhotoLibrary.shared().register(listener)
+    }
+
+    private func startHiddenCountPolling() {
+        guard foreground, enabled, hiddenCountTask == nil else { return }
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        access = status
+        guard status == .authorized || status == .limited else { return }
+        lastHiddenCount = MediaLibrary.hiddenCount()
+        hiddenCountTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    break
+                }
+                guard let self, self.foreground, self.enabled else { break }
+                let current = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+                self.access = current
+                guard current == .authorized || current == .limited else { continue }
+                let count = MediaLibrary.hiddenCount()
+                if count != self.lastHiddenCount {
+                    self.lastHiddenCount = count
+                    self.noteLibraryChange()
+                }
+            }
+        }
+    }
+
+    private func stopHiddenCountPolling() {
+        hiddenCountTask?.cancel()
+        hiddenCountTask = nil
+        lastHiddenCount = nil
+    }
+
+    private func noteLibraryChange() {
+        guard approvedToRun else { return }
+        if task == nil && stage == .current {
+            resume()
+        } else {
+            pendingLibraryChange = true
+        }
     }
 
     private func stopObserving() {
@@ -352,6 +449,63 @@ final class MediaBackup {
         return created
     }
 
+    private func upload(
+        _ item: PendingResource,
+        uploadID: UUID,
+        destination: MediaDestination,
+        session: URLSession,
+        profileName: String
+    ) async -> ResourceResult {
+        do {
+            try Task.checkCancellation()
+            try checkAccess()
+            guard MediaLibrary.isReadable(item.asset) else { throw BackupError.noLongerReadable }
+            let file = try await item.resource.export()
+            try Task.checkCancellation()
+            try checkAccess()
+            guard MediaLibrary.isReadable(item.asset) else { throw BackupError.noLongerReadable }
+
+            let client = MediaUploadClient(
+                session: session,
+                baseURL: destination.url,
+                device: installationID,
+                deviceName: profileName
+            )
+            try await client.upload(
+                file: file.url,
+                id: uploadID,
+                fileExtension: file.fileExtension,
+                contentType: file.contentType,
+                isVideo: file.isVideo
+            ) {
+                try Task.checkCancellation()
+                try self.checkAccess()
+                guard MediaLibrary.isReadable(item.asset) else { throw BackupError.noLongerReadable }
+                try await self.routing.validate(destination)
+                try self.checkAccess()
+                guard MediaLibrary.isReadable(item.asset) else { throw BackupError.noLongerReadable }
+            }
+            return ResourceResult(key: item.resource.key, isVideo: item.resource.isVideo)
+        } catch {
+            return ResourceResult(key: item.resource.key, isVideo: item.resource.isVideo, error: error)
+        }
+    }
+
+    private static func stopsAllWork(for error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let backupError = error as? BackupError, case .permission = backupError { return true }
+        if error is MediaRoutingError { return true }
+        if let uploadError = error as? MediaUploadError {
+            switch uploadError {
+            case .invalidDestination, .serverRejected:
+                return true
+            default:
+                return false
+            }
+        }
+        return false
+    }
+
     private static func countText(_ count: Int) -> String {
         count == 1 ? "El servidor confirmó 1 archivo." : "El servidor confirmó \(count) archivos."
     }
@@ -369,12 +523,30 @@ final class MediaBackup {
             onChange()
         }
     }
+
+    private struct PendingResource: @unchecked Sendable {
+        let asset: PHAsset
+        let resource: MediaLibrary.Resource
+    }
+
+    private struct ResourceResult: @unchecked Sendable {
+        let key: String
+        let isVideo: Bool
+        let error: Error?
+
+        init(key: String, isVideo: Bool, error: Error? = nil) {
+            self.key = key
+            self.isVideo = isVideo
+            self.error = error
+        }
+    }
 }
 
 private enum BackupError: LocalizedError {
     case permission
     case noLongerReadable
-    case exportFailures(Int)
+    case profileName
+    case resourceFailures(Int)
 
     var errorDescription: String? {
         switch self {
@@ -382,8 +554,10 @@ private enum BackupError: LocalizedError {
             "Pulso necesita permiso para leer Fotos. Puedes cambiarlo en Ajustes."
         case .noLongerReadable:
             "iOS dejó de dar acceso a este elemento."
-        case .exportFailures(let count):
-            "iOS no pudo preparar \(count) recursos. Comprueba el espacio disponible y la conexión con iCloud, y vuelve a intentar."
+        case .profileName:
+            "Añade un nombre de perfil antes de iniciar el respaldo."
+        case .resourceFailures(let count):
+            "No se pudieron respaldar \(count) recursos. Comprueba el espacio disponible y la conexión, y vuelve a intentar."
         }
     }
 }

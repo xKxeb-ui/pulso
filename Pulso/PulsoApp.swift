@@ -6,10 +6,19 @@ struct PulsoApp: App {
     @Environment(\.scenePhase) private var mediaScenePhase
     @State private var store = Store()
     @State private var mediaBackup = MediaBackup.shared
+    @State private var profileName = PulsoProfile.name
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            Group {
+                if profileName == nil {
+                    PulsoProfileView {
+                        profileName = PulsoProfile.name
+                    }
+                } else {
+                    RootView()
+                }
+            }
                 .environment(store)
                 .environment(mediaBackup)
                 .onChange(of: mediaScenePhase, initial: true) { _, phase in

@@ -51,7 +51,7 @@ jobs:
           test -n "$(/usr/libexec/PlistBuddy -c 'Print :NSPhotoLibraryUsageDescription' "$PLIST")"
           test "$(/usr/libexec/PlistBuddy -c 'Print :UIBackgroundModes:0' "$PLIST")" = processing
           test "$(/usr/libexec/PlistBuddy -c 'Print :BGTaskSchedulerPermittedIdentifiers:0' "$PLIST")" = com.codex.local.pulso.media-backup
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")" = 2
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")" = 3
 
       - name: Empaquetar IPA
         run: |

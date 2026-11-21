@@ -77,7 +77,7 @@ struct MediaTransferView: View {
             ) {
                 Text("Revisados \(backup.scanned) de \(backup.libraryCount)")
             }
-            Text("Enviados en esta sesión: \(backup.uploaded)")
+            Text("Confirmados en esta sesión: \(backup.uploaded)")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         case .current:
@@ -93,6 +93,8 @@ struct MediaTransferView: View {
             Text("Acceso limitado a Fotos. Se respaldarán los elementos que iOS permite a Pulso.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+            Button("Cambiar acceso a Fotos", action: openSettings)
+                .buttonStyle(MediaActionButtonStyle())
         }
         if let detail = backup.detail {
             Text(detail)
@@ -107,23 +109,25 @@ struct MediaTransferView: View {
             Button(backup.enabled ? "Revisar nuevo destino" : "Activar respaldo") {
                 backup.prepareReview()
             }
-            .buttonStyle(.glassProminent)
+            .buttonStyle(MediaActionButtonStyle(prominent: true))
             .disabled(backup.busy)
         } else if backup.stage == .blocked {
             if backup.access == .denied || backup.access == .restricted {
-                Button("Abrir Ajustes") {
-                    if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
-                }
-                .buttonStyle(.glass)
+                Button("Abrir Ajustes", action: openSettings)
+                .buttonStyle(MediaActionButtonStyle())
             } else {
                 Button("Reintentar") { backup.retry() }
-                    .buttonStyle(.glass)
+                    .buttonStyle(MediaActionButtonStyle())
             }
         }
         if backup.enabled {
             Button("Detener y desactivar respaldo", role: .destructive) { backup.stop() }
-                .buttonStyle(.glass)
+                .buttonStyle(MediaActionButtonStyle())
         }
+    }
+
+    private func openSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
     }
 
     private func consent(_ review: MediaBackup.Review) -> some View {
@@ -137,6 +141,12 @@ struct MediaTransferView: View {
                             Text(review.destination.url.absoluteString)
                                 .font(.subheadline.monospaced())
                                 .textSelection(.enabled)
+                            if let name = PulsoProfile.name {
+                                LabeledContent("Perfil", value: name)
+                                Text("El servidor registrará este nombre junto con los archivos.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
                             Text("Pulso copiará automáticamente las fotos y los videos que iOS autorice, incluidos los del álbum Oculto cuando iOS permita leerlos. También copiará los elementos que autorices más adelante.")
                             Text("El respaldo se reanuda al abrir Pulso y puede ejecutarse en segundo plano cuando iOS le dé tiempo. Los archivos pueden incluir la fecha y la ubicación. Puedes desactivar el respaldo desde Multimedia.")
                         }
@@ -147,10 +157,9 @@ struct MediaTransferView: View {
                         Text("Aceptar e iniciar respaldo")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(MediaActionButtonStyle(prominent: true))
                     Button("Rechazar", role: .cancel) { backup.reject() }
-                        .buttonStyle(.glass)
-                        .frame(maxWidth: .infinity)
+                        .buttonStyle(MediaActionButtonStyle())
                 }
                 .padding(20)
             }
@@ -158,5 +167,30 @@ struct MediaTransferView: View {
             .navigationTitle("Autorizar respaldo")
             .navigationBarTitleDisplayMode(.inline)
         }
+    }
+}
+
+struct MediaActionButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
+    var prominent = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        let ink = Color(uiColor: .label)
+        let paper = Color(uiColor: .systemBackground)
+        configuration.label
+            .font(.body.weight(.semibold))
+            .multilineTextAlignment(.center)
+            .foregroundStyle(prominent ? paper : ink)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(prominent ? ink : paper, in: .capsule)
+            .overlay {
+                if !prominent {
+                    Capsule().strokeBorder(ink.opacity(0.30))
+                }
+            }
+            .contentShape(.capsule)
+            .opacity(enabled ? (configuration.isPressed ? 0.82 : 1) : 0.55)
     }
 }

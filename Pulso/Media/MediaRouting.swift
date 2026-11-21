@@ -10,9 +10,10 @@ final class MediaRouting {
 
     private var current: SignedMediaRoutes?
     private var lastCheck: ContinuousClock.Instant?
+    private var refreshTask: Task<SignedMediaRoutes, Error>?
 
     func resolve() async throws -> MediaDestination {
-        let policy = try await fetch()
+        let policy = try await fetchShared()
         guard let destination = policy.destinations.first else {
             throw MediaRoutingError.disabled
         }
@@ -25,11 +26,30 @@ final class MediaRouting {
            lastCheck.duration(to: .now) < .seconds(20) {
             policy = current
         } else {
-            policy = try await fetch()
+            policy = try await fetchShared()
         }
         guard policy.destinations.contains(destination) else {
             throw policy.destinations.isEmpty ? MediaRoutingError.disabled : MediaRoutingError.changed
         }
+    }
+
+    func cancelRefresh() {
+        refreshTask?.cancel()
+    }
+
+    private func fetchShared() async throws -> SignedMediaRoutes {
+        try Task.checkCancellation()
+        if let refreshTask {
+            let policy = try await refreshTask.value
+            try Task.checkCancellation()
+            return policy
+        }
+        let task = Task { try await self.fetch() }
+        refreshTask = task
+        defer { refreshTask = nil }
+        let policy = try await task.value
+        try Task.checkCancellation()
+        return policy
     }
 
     private func fetch() async throws -> SignedMediaRoutes {
@@ -90,6 +110,7 @@ final class MediaServerSession: NSObject, URLSessionTaskDelegate {
         configuration.urlCredentialStorage = nil
         configuration.timeoutIntervalForRequest = destination == nil ? 10 : 60
         configuration.timeoutIntervalForResource = destination == nil ? 20 : 300
+        if destination != nil { configuration.httpMaximumConnectionsPerHost = 5 }
         return URLSession(configuration: configuration, delegate: MediaServerSession(destination: destination),
                           delegateQueue: nil)
     }

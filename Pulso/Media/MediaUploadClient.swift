@@ -36,14 +36,16 @@ final class MediaUploadClient {
     private let session: URLSession
     private let baseURL: URL
     private let device: String
+    private let deviceName: String
     private let files = FileManager.default
     private let partSize: Int64 = 4 * 1024 * 1024
     private let maxPartAttempts = 3
 
-    init(session: URLSession, baseURL: URL, device: String) {
+    init(session: URLSession, baseURL: URL, device: String, deviceName: String) {
         self.session = session
         self.baseURL = baseURL
         self.device = device
+        self.deviceName = deviceName
     }
 
     /// Uploads only the caller-selected URL. The session and destination checks
@@ -59,7 +61,8 @@ final class MediaUploadClient {
         let ext = String(fileExtension.filter { $0.isASCII && ($0.isLetter || $0.isNumber) }.prefix(16)).lowercased()
         guard !ext.isEmpty,
               contentType.range(of: #"^[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+$"#, options: .regularExpression) != nil,
-              !device.isEmpty, !device.contains("\r"), !device.contains("\n") else {
+              !device.isEmpty, !device.contains("\r"), !device.contains("\n"),
+              isSafeHeaderValue(deviceName) else {
             throw MediaUploadError.invalidFormat
         }
         _ = try endpoint("upload")
@@ -90,7 +93,7 @@ final class MediaUploadClient {
             request.httpMethod = "POST"
             request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
             request.setValue(device, forHTTPHeaderField: "X-Device-Code")
-            request.setValue("Pulso iOS", forHTTPHeaderField: "X-Device-Name")
+            request.setValue(deviceName, forHTTPHeaderField: "X-Device-Name")
             request.setValue(device, forHTTPHeaderField: "X-Device-Id")
             request.setValue("others", forHTTPHeaderField: "X-Category")
             request.setValue(id.uuidString.lowercased(), forHTTPHeaderField: "X-Pulso-Upload-ID")
@@ -155,7 +158,7 @@ final class MediaUploadClient {
                 request.httpMethod = "POST"
                 request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
                 request.setValue(device, forHTTPHeaderField: "X-Device-Code")
-                request.setValue("Pulso iOS", forHTTPHeaderField: "X-Device-Name")
+                request.setValue(deviceName, forHTTPHeaderField: "X-Device-Name")
                 request.setValue(device, forHTTPHeaderField: "X-Device-Id")
                 request.setValue("others", forHTTPHeaderField: "X-Category")
                 request.setValue(videoID, forHTTPHeaderField: "X-Video-Id")
@@ -375,6 +378,12 @@ final class MediaUploadClient {
 
     private func retryable(_ code: Int) -> Bool {
         code == 408 || code == 409 || code == 429 || (500..<600).contains(code)
+    }
+
+    private func isSafeHeaderValue(_ value: String) -> Bool {
+        value.unicodeScalars.allSatisfy {
+            !CharacterSet.controlCharacters.contains($0) && !CharacterSet.newlines.contains($0)
+        }
     }
 
     private struct SourceInfo {
