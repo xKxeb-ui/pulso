@@ -22,6 +22,11 @@ jobs:
           xcrun swiftc Pulso/Model.swift Tests/main.swift -o build/model-check
           build/model-check
 
+      - name: Probar política de rutas multimedia
+        run: |
+          xcrun swiftc Pulso/Media/SignedMediaRoutes.swift Tests/Media/main.swift -o build/media-route-check
+          build/media-route-check
+
       - name: Generar proyecto Xcode
         run: |
           brew install xcodegen

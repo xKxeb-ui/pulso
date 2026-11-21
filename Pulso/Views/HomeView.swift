@@ -27,6 +27,16 @@ struct HomeView: View {
             .scrollDismissesKeyboard(.interactively)
             .background { Backdrop() }
             .navigationTitle("Pulso")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        MediaTransferView()
+                    } label: {
+                        Label("Multimedia", systemImage: "photo.on.rectangle")
+                            .labelStyle(.iconOnly)
+                    }
+                }
+            }
             .keyboardDone()
         }
     }
