@@ -3,11 +3,13 @@ import SwiftUI
 @main
 struct PulsoApp: App {
     @State private var store = Store()
+    @State private var mediaBackup = MediaBackup()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(store)
+                .environment(mediaBackup)
         }
     }
 }

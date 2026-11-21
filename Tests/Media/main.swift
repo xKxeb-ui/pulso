@@ -54,3 +54,35 @@ func runChecks() throws {
 }
 
 try runChecks()
+
+func runBackupLogChecks() throws {
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("Pulso-test-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let destination = URL(string: "https://example.com/wingy")!
+    var log = try MediaBackupLog(destination: destination, device: "simulado", directory: folder)
+    let key = "recurso-de-prueba"
+    let uploadID = log.uploadID(for: key)
+    precondition(!log.contains(key))
+    try log.record(key)
+    try log.record(key)
+
+    let files = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
+    precondition(files.count == 1)
+    let journal = files[0]
+    let committed = try Data(contentsOf: journal)
+    precondition(committed.count == 65)
+    try (committed + Data(repeating: 0x61, count: 64)).write(to: journal)
+
+    var resumed = try MediaBackupLog(destination: destination, device: "simulado", directory: folder)
+    precondition(resumed.contains(key) && resumed.uploadID(for: key) == uploadID)
+    try resumed.record("segundo-recurso")
+    let recoveredBytes = try Data(contentsOf: journal)
+    precondition(recoveredBytes.count == 130)
+    let separate = try MediaBackupLog(
+        destination: URL(string: "https://example.net/wingy")!, device: "simulado", directory: folder
+    )
+    precondition(!separate.contains(key) && separate.uploadID(for: key) != uploadID)
+    print("OK: registro y reanudación del respaldo")
+}
+
+try runBackupLogChecks()

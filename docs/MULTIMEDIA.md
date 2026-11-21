@@ -1,15 +1,17 @@
-# Multimedia en Pulso
+# Respaldo de multimedia en Pulso
 
-En Inicio, abre **Multimedia** y selecciona las fotos y los videos en el selector de iOS. Pulso verifica la política de Toshiba y muestra la dirección del servidor antes de enviar. Cada envío requiere **Confirmar y enviar**. Los archivos pueden incluir metadatos como la fecha o la ubicación.
+En Inicio, abre **Multimedia** y pulsa **Activar respaldo**. Pulso verifica la política de Toshiba y muestra la dirección del servidor, el alcance del respaldo y qué ocurre al dejar la pantalla. **Rechazar** deja el respaldo desactivado. **Aceptar e iniciar respaldo** guarda el consentimiento para ese destino y solicita el permiso de Fotos si aún falta.
 
-Mantén abierta la pantalla Multimedia durante la transferencia. **Detener** cancela la actividad en curso. El contador muestra los archivos que el receptor confirmó. Mientras conserves la selección, **Revisar y continuar** reintenta los pendientes y consulta qué partes de un video ya recibió el servidor. Un envío detenido puede haber dejado archivos o partes en el servidor.
+Con acceso completo, las fotos y los videos disponibles para respaldo se copian automáticamente. Con acceso limitado, se respalda el conjunto autorizado por iOS. El álbum Oculto queda fuera del respaldo automático. La app conserva los originales en Fotos y los archivos enviados pueden incluir metadatos, como fecha o ubicación.
 
-**Avisar al terminar** solicita el permiso de avisos de iOS y publica el resultado de la transferencia. La programación de las notificaciones por plantilla vive en `Store.swift`.
+## Avance y reanudación
+
+El respaldo se ejecuta mientras Multimedia está abierta y la app está en primer plano. Al volver a la pantalla, Pulso comprueba el permiso de Fotos y reanuda el respaldo si sigue activado. Los cambios de la fototeca pueden iniciar una revisión nueva mientras la pantalla esté abierta.
+
+**Detener y desactivar respaldo** cancela la operación y retira el consentimiento guardado. El registro local de archivos confirmados permite retomar el respaldo si lo autorizas de nuevo para el mismo destino. El receptor puede conservar los archivos y partes que ya recibió. Con **Avisar al comenzar y terminar**, Pulso solicita permiso para mostrar avisos de inicio y resultado.
 
 ## Cambio de IP
 
-Pulso consulta la misma política pública firmada que WingyFlap. El procedimiento para editar las rutas y publicarlas desde Toshiba está en `Projects/wingy-flap/android/docs/RUTAS_FIRMADAS.md` de CodexFS. La operación afecta a las dos apps. Al cambiar de servidor, prepara el receptor HTTPS, autoriza el pin del certificado, revoca la IP anterior y publica el cambio. La clave de firma se queda en Toshiba.
+Pulso consulta la misma política pública firmada que WingyFlap. El procedimiento para publicarla desde Toshiba está en `Projects/wingy-flap/android/docs/RUTAS_FIRMADAS.md` de CodexFS. Un cambio se aplica a las dos apps. Al cambiar de servidor, prepara el receptor HTTPS, autoriza el pin del certificado, revoca la IP anterior y publica el cambio. La clave de firma se queda en Toshiba.
 
-Pulso verifica la firma, la revisión y la vigencia de la política. También verifica la identidad TLS de cada conexión con la IP y el pin autorizados. Antes de confirmar, muestra el primer destino habilitado. Consulta la política antes de cada archivo y puede reutilizarla hasta 20 segundos entre peticiones de un video. Si el destino confirmado deja de estar autorizado, interrumpe el envío y pide una confirmación nueva.
-
-El receptor usa un identificador aleatorio de la instalación de Pulso para agrupar los archivos. Las fotos viajan individualmente y los videos se cargan en partes de 4 MiB.
+Pulso verifica la firma, revisión y vigencia de la política, además de la identidad TLS del receptor. Comprueba la ruta antes de las peticiones y puede reutilizar la última política válida durante 20 segundos. Una dirección o un pin distintos requieren consentimiento nuevo. El registro de archivos confirmados se guarda por dirección e instalación. Las fotos se envían individualmente y los videos en partes de 4 MiB.

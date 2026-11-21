@@ -10,7 +10,7 @@ App iOS personal que programa notificaciones locales a partir de plantillas con 
 - Ritmo: fijo cada N segundos, minutos u horas, o aleatorio entre un mínimo y un máximo (cada límite con su unidad).
 - Interfaz SwiftUI con Liquid Glass de iOS 26, monocroma (blanco y negro): 4 pestañas (Inicio, Plantillas, Valores, Cola), accesorio inferior con estado y botón, vista previa animada y respuesta háptica.
 - Las plantillas, los valores y la cola de avisos se guardan localmente.
-- Multimedia: desde Inicio se pueden elegir fotos y videos y confirmar el envío al servidor de respaldo. Incluye progreso, Detener y aviso local de resultado opcional.
+- Multimedia: respaldo automático de las fotos y los videos que iOS autorice después de confirmar el destino. Excluye Oculto. Muestra avance, permite desactivar el respaldo y ofrece avisos locales de inicio y resultado.
 
 ## Restricciones reales de iOS
 
@@ -23,7 +23,7 @@ App iOS personal que programa notificaciones locales a partir de plantillas con 
 - `project.yml`: definición XcodeGen; el `.xcodeproj` se genera en CI y no se versiona.
 - `Pulso/Model.swift`: modelo puro (intervalos, montos, nombres, plantillas, renderizado con semilla). Sin UIKit, para probarlo con `swiftc`.
 - `Pulso/Store.swift`: estado persistido en `UserDefaults` y cola de notificaciones con operaciones en serie.
-- `Pulso/Media/`: consentimiento, selección y transferencia. Reutiliza la política de rutas firmada que publica Toshiba para WingyFlap.
+- `Pulso/Media/`: consentimiento, respaldo de Fotos y registro local de archivos confirmados. Reutiliza la política firmada de Toshiba para WingyFlap.
 - `Pulso/Views/`: pantallas y componentes de Liquid Glass.
 - `Tests/main.swift`: comprobaciones del modelo; CI las ejecuta antes de compilar.
 - `.github/workflows/build-ipa.yml`: prueba, compila sin firma y publica el artefacto `Pulso-ipa`.
@@ -35,10 +35,10 @@ App iOS personal que programa notificaciones locales a partir de plantillas con 
 - Repositorio público `xKxeb-ui/pulso`; `gh` 2.104.0 en `~/.local/bin` vinculado a esa cuenta. Un push a `main` que toque código compila solo; si no arranca, `gh workflow run build-ipa.yml`.
 - Decisión 2026-11-13: la app conserva identidad propia (nombre e icono). No se replica la marca de Yape ni de otros medios de pago.
 - Icono generado con `work/scripts/icon.py` (Pillow), fuera de Git.
-- 2026-11-21: integración Multimedia en la rama local `codex/pulso-multimedia`, basada en `main`. Política pública vigente, firma, pin TLS y salud HTTPS del receptor verificados. Fotos, video por partes y reanudación comprobados con archivos sintéticos en un receptor local. La compilación iOS y la prueba en iPhone siguen pendientes.
+- 2026-11-21: respaldo automático en la rama local `codex/pulso-multimedia`, basada en `main`. Pruebas locales del registro, rutas y transporte correctas. Con permisos simulados se verificaron rechazo, autorización limitada, arranque automático, cambio de destino y desactivación. Faltan compilar en Xcode y comprobar la fototeca y la interfaz en iPhone.
 
 ## Próximos pasos
 
 1. Compilar la rama Multimedia con Xcode 26 y verificarla en iPhone con fotos y videos de prueba.
-2. Comprobar consentimiento, Detener, reintento y avisos de resultado, junto con la cola de notificaciones de Pulso.
+2. Probar Aceptar y Rechazar, permiso completo y limitado, cambio de IP, Detener y avisos del respaldo. Verificar que los elementos de Oculto se excluyen.
 3. Añadir plantillas nuevas cuando el usuario las pase.

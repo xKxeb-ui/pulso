@@ -23,6 +23,7 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Pulso
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Pulso necesita leer las fotos y los videos que autorices para respaldarlos automáticamente en el servidor que confirmes.
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
