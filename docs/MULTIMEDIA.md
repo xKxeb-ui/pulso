@@ -2,11 +2,11 @@
 
 En Inicio, abre **Multimedia** y pulsa **Activar respaldo**. Pulso verifica la política de Toshiba y muestra la dirección del servidor, el alcance del respaldo y qué ocurre al dejar la pantalla. **Rechazar** deja el respaldo desactivado. **Aceptar e iniciar respaldo** guarda el consentimiento para ese destino y solicita el permiso de Fotos si aún falta.
 
-Con acceso completo, las fotos y los videos disponibles para respaldo se copian automáticamente. Con acceso limitado, se respalda el conjunto autorizado por iOS. El álbum Oculto queda fuera del respaldo automático. La app conserva los originales en Fotos y los archivos enviados pueden incluir metadatos, como fecha o ubicación.
+Con acceso completo, las fotos y los videos disponibles para respaldo se copian automáticamente. Con acceso limitado, se respalda el conjunto autorizado por iOS. Esto incluye el álbum Oculto cuando PhotoKit devuelve sus elementos. El consentimiento de la versión 2 cubre los archivos autorizados en el futuro. Si ya habías activado una versión anterior con un alcance más reducido, Pulso pide aceptar el alcance actualizado y conserva el registro de archivos enviados. La app conserva los originales en Fotos. Los archivos enviados pueden incluir fecha o ubicación.
 
 ## Avance y reanudación
 
-El respaldo se ejecuta mientras Multimedia está abierta y la app está en primer plano. Al volver a la pantalla, Pulso comprueba el permiso de Fotos y reanuda el respaldo si sigue activado. Los cambios de la fototeca pueden iniciar una revisión nueva mientras la pantalla esté abierta.
+Pulso comprueba el permiso de Fotos y reanuda el respaldo al volver a la app, desde cualquier pantalla. También observa los cambios de la fototeca mientras está activa y solicita a iOS tiempo en segundo plano. iOS decide cuándo puede ejecutar esas tareas. Cuando termina el tiempo asignado, Pulso cancela el intento y conserva el avance confirmado.
 
 **Detener y desactivar respaldo** cancela la operación y retira el consentimiento guardado. El registro local de archivos confirmados permite retomar el respaldo si lo autorizas de nuevo para el mismo destino. El receptor puede conservar los archivos y partes que ya recibió. Con **Avisar al comenzar y terminar**, Pulso solicita permiso para mostrar avisos de inicio y resultado.
 

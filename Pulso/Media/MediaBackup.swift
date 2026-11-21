@@ -1,3 +1,4 @@
+import BackgroundTasks
 import Foundation
 import Observation
 import Photos
@@ -6,6 +7,8 @@ import UserNotifications
 @MainActor
 @Observable
 final class MediaBackup {
+    static let shared = MediaBackup()
+
     struct Review: Identifiable {
         let id = UUID()
         let destination: MediaDestination
@@ -29,7 +32,7 @@ final class MediaBackup {
         }
     }
 
-    private static let approvalKey = "pulso.media.backupApproval"
+    private static let approvalKey = "pulso.media.backupApproval.v2"
     private static let noticesKey = "pulso.media.notifications"
 
     var review: Review?
@@ -45,34 +48,47 @@ final class MediaBackup {
     private let routing = MediaRouting()
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var observer: LibraryObserver?
-    @ObservationIgnored private var visible = false
+    @ObservationIgnored private var foreground = false
+    @ObservationIgnored private var runningInBackground = false
     @ObservationIgnored private var resumeAfterCancellation = false
     @ObservationIgnored private var pendingLibraryChange = false
 
     var enabled: Bool { approval != nil }
 
+    private init() {
+        let defaults = UserDefaults.standard
+        let previousApprovalKey = "pulso.media.backupApproval"
+        if defaults.data(forKey: previousApprovalKey) != nil {
+            defaults.removeObject(forKey: previousApprovalKey)
+            if !enabled {
+                detail = "Confirma el alcance actualizado para continuar el respaldo."
+            }
+        }
+    }
+
     var busy: Bool {
         [.checking, .authorizing, .scanning, .sending, .stopping].contains(stage)
     }
 
-    func setVisible(_ value: Bool) {
-        guard visible != value else { return }
-        visible = value
+    func setForeground(_ value: Bool) {
+        guard foreground != value else { return }
+        foreground = value
         if value {
-            if task?.isCancelled == true {
+            if runningInBackground || task?.isCancelled == true {
                 resumeAfterCancellation = true
+                task?.cancel()
             } else {
                 resume()
             }
         } else {
             review = nil
             stopObserving()
-            task?.cancel()
+            if !runningInBackground { task?.cancel() }
         }
     }
 
     func prepareReview() {
-        guard task == nil && visible else { return }
+        guard task == nil && foreground else { return }
         stage = .checking
         detail = nil
         launch {
@@ -88,13 +104,14 @@ final class MediaBackup {
     }
 
     func accept(_ choice: Review) {
-        guard task == nil, review?.id == choice.id, visible else { return }
+        guard task == nil, review?.id == choice.id, foreground else { return }
         review = nil
         let record = Approval(choice.destination)
         do {
             let data = try JSONEncoder().encode(record)
             UserDefaults.standard.set(data, forKey: Self.approvalKey)
             approval = record
+            MediaBackupScheduler.schedule()
             resume(requestPermission: true)
         } catch {
             report(error)
@@ -109,6 +126,7 @@ final class MediaBackup {
     func stop() {
         UserDefaults.standard.removeObject(forKey: Self.approvalKey)
         approval = nil
+        MediaBackupScheduler.cancel()
         review = nil
         resumeAfterCancellation = false
         stopObserving()
@@ -121,35 +139,66 @@ final class MediaBackup {
         resume(requestPermission: true)
     }
 
-    private func resume(requestPermission: Bool = false) {
-        guard approvedToRun, task == nil, let approval else { return }
-        stage = .checking
-        detail = nil
-        launch {
-            do {
-                self.access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-                if requestPermission && self.access == .notDetermined {
-                    self.stage = .authorizing
-                    self.access = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-                }
-                try Task.checkCancellation()
-                try self.checkAccess()
-                let destination = try await self.routing.resolve()
-                guard approval.permits(destination) else { throw MediaRoutingError.changed }
+    func runInBackground(_ job: BGTask) {
+        if enabled { MediaBackupScheduler.schedule() }
+        guard enabled, !foreground, task == nil else {
+            job.setTaskCompleted(success: true)
+            return
+        }
 
-                self.startObserving()
-                repeat {
-                    self.pendingLibraryChange = false
-                    try await self.backup(to: destination)
-                } while self.pendingLibraryChange
-            } catch {
-                self.stopObserving()
-                self.report(error)
-            }
+        runningInBackground = true
+        beginPass()
+        launch {
+            let success = await self.runBackup(requestPermission: false, watchChanges: false)
+            self.runningInBackground = false
+            job.expirationHandler = nil
+            job.setTaskCompleted(success: success && !Task.isCancelled)
+        }
+        let operation = task
+        job.expirationHandler = { operation?.cancel() }
+    }
+
+    private func resume(requestPermission: Bool = false) {
+        guard enabled, foreground, task == nil else { return }
+        beginPass()
+        launch {
+            _ = await self.runBackup(requestPermission: requestPermission, watchChanges: true)
         }
     }
 
-    private var approvedToRun: Bool { visible && enabled }
+    private func beginPass() {
+        stage = .checking
+        detail = nil
+    }
+
+    private func runBackup(requestPermission: Bool, watchChanges: Bool) async -> Bool {
+        guard let approval else { return false }
+        do {
+            access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+            if requestPermission && access == .notDetermined {
+                stage = .authorizing
+                access = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+            }
+            try checkAccess()
+            let destination = try await routing.resolve()
+            guard approval.permits(destination) else { throw MediaRoutingError.changed }
+
+            // The system's background window is used for one pass. In the
+            // foreground, library changes can start another one immediately.
+            if watchChanges { startObserving() }
+            repeat {
+                pendingLibraryChange = false
+                try await backup(to: destination)
+            } while watchChanges && pendingLibraryChange
+            return true
+        } catch {
+            stopObserving()
+            report(error)
+            return false
+        }
+    }
+
+    private var approvedToRun: Bool { (foreground || runningInBackground) && enabled }
 
     private func launch(_ action: @escaping @MainActor () async -> Void) {
         task = Task {

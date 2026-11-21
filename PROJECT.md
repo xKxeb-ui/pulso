@@ -10,7 +10,7 @@ App iOS personal que programa notificaciones locales a partir de plantillas con 
 - Ritmo: fijo cada N segundos, minutos u horas, o aleatorio entre un mínimo y un máximo (cada límite con su unidad).
 - Interfaz SwiftUI con Liquid Glass de iOS 26, monocroma (blanco y negro): 4 pestañas (Inicio, Plantillas, Valores, Cola), accesorio inferior con estado y botón, vista previa animada y respuesta háptica.
 - Las plantillas, los valores y la cola de avisos se guardan localmente.
-- Multimedia: respaldo automático de las fotos y los videos que iOS autorice después de confirmar el destino. Excluye Oculto. Muestra avance, permite desactivar el respaldo y ofrece avisos locales de inicio y resultado.
+- Multimedia: respaldo automático de las fotos y los videos que iOS autorice después de confirmar el destino, incluido Oculto cuando PhotoKit lo expone. Detecta ampliaciones de permisos al volver a la app y solicita ejecución en segundo plano. Muestra avance, permite desactivar el respaldo y ofrece avisos locales de inicio y resultado.
 
 ## Restricciones reales de iOS
 
@@ -40,5 +40,5 @@ App iOS personal que programa notificaciones locales a partir de plantillas con 
 ## Próximos pasos
 
 1. Compilar la rama Multimedia con Xcode 26 y verificarla en iPhone con fotos y videos de prueba.
-2. Probar Aceptar y Rechazar, permiso completo y limitado, cambio de IP, Detener y avisos del respaldo. Verificar que los elementos de Oculto se excluyen.
+2. Probar en iPhone el cambio de acceso limitado a completo, Oculto con autenticación activa y desactivada, y reanudación. Comprobar cambio de destino, Detener y avisos.
 3. Añadir plantillas nuevas cuando el usuario las pase.

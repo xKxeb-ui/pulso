@@ -2,14 +2,20 @@ import SwiftUI
 
 @main
 struct PulsoApp: App {
+    @UIApplicationDelegateAdaptor(MediaBackupAppDelegate.self) private var mediaBackupDelegate
+    @Environment(\.scenePhase) private var mediaScenePhase
     @State private var store = Store()
-    @State private var mediaBackup = MediaBackup()
+    @State private var mediaBackup = MediaBackup.shared
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(store)
                 .environment(mediaBackup)
+                .onChange(of: mediaScenePhase, initial: true) { _, phase in
+                    if phase == .active { mediaBackup.setForeground(true) }
+                    if phase == .background { mediaBackup.setForeground(false) }
+                }
         }
     }
 }

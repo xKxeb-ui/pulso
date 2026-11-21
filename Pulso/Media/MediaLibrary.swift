@@ -5,29 +5,49 @@ import UniformTypeIdentifiers
 
 enum MediaLibrary {
     @MainActor
-    static func fetch() -> PHFetchResult<PHAsset> {
+    static func fetch() -> AssetFetchResult {
+        AssetFetchResult(
+            visible: PHAsset.fetchAssets(with: mediaOptions(includeHidden: false)),
+            hidden: fetchHidden()
+        )
+    }
+
+    @MainActor
+    static func isReadable(_ asset: PHAsset) -> Bool {
+        let visible = PHAsset.fetchAssets(
+            withLocalIdentifiers: [asset.localIdentifier], options: mediaOptions(includeHidden: false)
+        )
+        if visible.firstObject != nil { return true }
+        return fetchHidden(identifier: asset.localIdentifier)?.firstObject != nil
+    }
+
+    @MainActor
+    private static func fetchHidden(identifier: String? = nil) -> PHFetchResult<PHAsset>? {
+        // PhotoKit returns the Hidden Smart Album empty while authentication is required.
+        guard let album = PHAssetCollection.fetchAssetCollections(
+            with: .smartAlbum, subtype: .smartAlbumAllHidden, options: nil
+        ).firstObject else {
+            return nil
+        }
+        let options = mediaOptions(includeHidden: true)
+        if let identifier, let media = options.predicate {
+            options.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                media, NSPredicate(format: "localIdentifier == %@", identifier)
+            ])
+        }
+        return PHAsset.fetchAssets(in: album, options: options)
+    }
+
+    private static func mediaOptions(includeHidden: Bool) -> PHFetchOptions {
         let options = PHFetchOptions()
-        options.includeHiddenAssets = false
+        options.includeHiddenAssets = includeHidden
         options.includeAllBurstAssets = true
         options.predicate = NSPredicate(
             format: "mediaType == %d OR mediaType == %d",
             PHAssetMediaType.image.rawValue,
             PHAssetMediaType.video.rawValue
         )
-        return PHAsset.fetchAssets(with: options)
-    }
-
-    @MainActor
-    static func isReadable(_ asset: PHAsset) -> Bool {
-        let options = PHFetchOptions()
-        options.includeHiddenAssets = false
-        options.includeAllBurstAssets = true
-        guard let current = PHAsset.fetchAssets(
-            withLocalIdentifiers: [asset.localIdentifier], options: options
-        ).firstObject else {
-            return false
-        }
-        return !current.isHidden && isStandardMedia(current)
+        return options
     }
 
     @MainActor
@@ -64,8 +84,18 @@ enum MediaLibrary {
         }
     }
 
-    private static func isStandardMedia(_ asset: PHAsset) -> Bool {
-        asset.mediaType == .image || asset.mediaType == .video
+    struct AssetFetchResult {
+        let visible: PHFetchResult<PHAsset>
+        let hidden: PHFetchResult<PHAsset>?
+
+        var count: Int { visible.count + (hidden?.count ?? 0) }
+
+        func object(at index: Int) -> PHAsset {
+            if let hidden, index >= visible.count {
+                return hidden.object(at: index - visible.count)
+            }
+            return visible.object(at: index)
+        }
     }
 
     struct Resource {

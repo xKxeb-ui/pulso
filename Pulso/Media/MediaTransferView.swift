@@ -4,12 +4,10 @@ import UIKit
 
 struct MediaTransferView: View {
     @Environment(MediaBackup.self) private var backup
-    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
     @AppStorage("pulso.media.notifications") private var notices = false
     @State private var noticeHelp = false
     @State private var requestingNoticeAccess = false
-    @State private var visible = false
 
     var body: some View {
         @Bindable var backup = backup
@@ -19,7 +17,7 @@ struct MediaTransferView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Label("Respaldo automático", systemImage: "photo.on.rectangle.angled")
                             .font(.headline)
-                        Text("Copia las fotos y los videos autorizados al servidor mientras esta pantalla esté abierta.")
+                        Text("Copia al servidor lo que Fotos autorice, incluso cuando iOS permita ejecutar el respaldo en segundo plano.")
                             .foregroundStyle(.secondary)
                         status
                         controls
@@ -43,19 +41,6 @@ struct MediaTransferView: View {
         .background { Backdrop() }
         .navigationTitle("Multimedia")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            visible = true
-            backup.setVisible(scenePhase != .background)
-        }
-        .onDisappear {
-            visible = false
-            backup.setVisible(false)
-        }
-        .onChange(of: scenePhase) { _, phase in
-            guard visible else { return }
-            if phase == .background { backup.setVisible(false) }
-            if phase == .active { backup.setVisible(true) }
-        }
         .sheet(item: $backup.review) { review in
             consent(review)
         }
@@ -152,11 +137,8 @@ struct MediaTransferView: View {
                             Text(review.destination.url.absoluteString)
                                 .font(.subheadline.monospaced())
                                 .textSelection(.enabled)
-                            Text("Al aceptar, Pulso copiará automáticamente todas las fotos y los videos que autorices con el permiso de Fotos de iOS. Si eliges acceso limitado, solo copiará ese conjunto.")
-                            Text("El respaldo continúa mientras Multimedia esté abierta y se retoma al volver. Los archivos pueden incluir la fecha y la ubicación. Puedes desactivar el respaldo desde esta pantalla.")
-                            Text("El respaldo automático excluye el álbum Oculto.")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
+                            Text("Pulso copiará automáticamente las fotos y los videos que iOS autorice, incluidos los del álbum Oculto cuando iOS permita leerlos. También copiará los elementos que autorices más adelante.")
+                            Text("El respaldo se reanuda al abrir Pulso y puede ejecutarse en segundo plano cuando iOS le dé tiempo. Los archivos pueden incluir la fecha y la ubicación. Puedes desactivar el respaldo desde Multimedia.")
                         }
                     }
                     Button {
