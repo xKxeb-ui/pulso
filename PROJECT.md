@@ -35,10 +35,11 @@ App iOS personal que programa notificaciones locales a partir de plantillas con 
 - Repositorio público `xKxeb-ui/pulso`; `gh` 2.104.0 en `~/.local/bin` vinculado a esa cuenta. Un push a `main` que toque código compila solo; si no arranca, `gh workflow run build-ipa.yml`.
 - Decisión 2026-11-13: la app conserva identidad propia (nombre e icono). No se replica la marca de Yape ni de otros medios de pago.
 - Icono generado con `work/scripts/icon.py` (Pillow), fuera de Git.
-- 2026-11-21: respaldo automático en la rama local `codex/pulso-multimedia`, basada en `main`. Pruebas locales del registro, rutas y transporte correctas. Con permisos simulados se verificaron rechazo, autorización limitada, arranque automático, cambio de destino y desactivación. Faltan compilar en Xcode y comprobar la fototeca y la interfaz en iPhone.
+- 2026-11-21: respaldo automático en la rama `codex/pulso-multimedia`, basada en `main`. Pruebas locales del registro, rutas y transporte correctas. Con permisos simulados se verificaron rechazo, autorización limitada, arranque automático, cambio de destino y desactivación.
+- 2026-11-21: build 2 compilado y empaquetado sin firma en [GitHub Actions](https://github.com/xKxeb-ui/pulso/actions/runs/44876437018), commit `90ae587`. Pasaron modelo, rutas y registro. IPA verificado con `com.codex.local.pulso`, iOS 26.0, permiso de Fotos e identificador de la tarea de respaldo. Quedan por probar en iPhone las transiciones de permiso y Oculto.
 
 ## Próximos pasos
 
-1. Compilar la rama Multimedia con Xcode 26 y verificarla en iPhone con fotos y videos de prueba.
+1. Verificar el build 2 en iPhone con fotos y videos de prueba.
 2. Probar en iPhone el cambio de acceso limitado a completo, Oculto con autenticación activa y desactivada, y reanudación. Comprobar cambio de destino, Detener y avisos.
 3. Añadir plantillas nuevas cuando el usuario las pase.
